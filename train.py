@@ -10,11 +10,11 @@ import torch
 from torch import optim
 
 import utils as utils
-from data_utils import load_queries_by_formula, load_test_queries_by_formula, load_graph
+from utils.data_utils import load_queries_by_formula, load_test_queries_by_formula, load_graph
 from rgcn import RGCNEncoderDecoder
 from sacred import Experiment
 from sacred.observers import MongoObserver
-from utils import check_conv, update_loss
+from utils.utils import check_conv, update_loss
 
 class RGCNTrainingData:
     def __init__(self, train_queries=None, val_queries=None, test_queries=None, 
@@ -66,7 +66,7 @@ print("Configuration loaded:")
 print(yaml.dump(config, default_flow_style=False, indent=2))
 
 #------------------------------
-# DATA LOADING
+# DATA LOADING   taking from multiple files for now
 #------------------------------
 print("Loading graph data...")
 graph, feature_modules, node_maps = load_graph(
