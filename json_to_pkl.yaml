@@ -1,13 +1,13 @@
-name: JSON to PKL Converter
-description: Converts JSON graph data to pickle format with train/val/test splits and negative sampling
+name: JSON to Pickle Converter
+description: Converts JSON graph data to pickle format with query structures and negative sampling.
 inputs:
-  - name: json_file
-    type: String
-    description: Path to the input JSON file containing graph data
-outputs:
-  - name: output_pkl_file
+  - name: input_file
     type: Dataset
-    description: Output pickle file containing processed graph data with splits
+    description: Input JSON file containing graph data from previous step.
+outputs:
+  - name: output_file
+    type: Dataset
+    description: Output pickle file path for processed graph data.
 implementation:
   container:
     image: python:3.9
@@ -16,7 +16,8 @@ implementation:
       - -c
       - |
         set -e
-        python3 -m pip install --quiet pickle5
+        python3 -m pip install --quiet requests
+
         exec "$0" "$@"
       - python3
       - -u
@@ -485,86 +486,81 @@ implementation:
                 pickle.dump(data_dict, f)
 
 
-        def main():
-            """Main execution function."""
-            parser = argparse.ArgumentParser()
-            parser.add_argument('--json_file', type=str, required=True)
-            parser.add_argument('--output_pkl_file', type=str, required=True)
-            args = parser.parse_args()
-            
-            # Set random seed for reproducible splits
-            random.seed(42)
-            
-            # Process the input file
-            tuples = process_json_file(args.json_file)
-            
-            if not tuples:
-                return 1
-            
-            # Apply negative sampling immediately after loading tuples
-            entity_pools = build_entity_pools(tuples)
-            tuples_with_negatives = add_negatives_to_tuples(tuples, entity_pools, num_negatives=1)
-            
-            # Generate all query structures using tuples with negatives
-            two_chain_tuples = create_two_chain(tuples_with_negatives)
-            two_inter_tuples = create_two_inter(tuples_with_negatives)
-            three_chain_tuples = create_three_chain(tuples_with_negatives)
-            three_inter_tuples = create_three_inter(tuples_with_negatives)
-            
-            # Add negatives to complex query structures
-            two_chain_with_negs = add_negatives_to_complex_queries(two_chain_tuples, entity_pools, num_negatives=1)
-            two_inter_with_negs = add_negatives_to_complex_queries(two_inter_tuples, entity_pools, num_negatives=1)
-            three_chain_with_negs = add_negatives_to_complex_queries(three_chain_tuples, entity_pools, num_negatives=1)
-            three_inter_with_negs = add_negatives_to_complex_queries(three_inter_tuples, entity_pools, num_negatives=1)
-            
-            # Create graph data structure
-            relations, triples, entity_types = create_graph_data_structure(tuples)
-            graph_data = [relations, triples, entity_types]
-            
-            # Create edge files from 1-chain (tuples already have negatives)
-            # Convert 1-chain tuples to Query serialization format
-            edges_serialized = convert_to_query_format(tuples_with_negatives)
-            train_edges, val_edges, test_edges = split_data(edges_serialized)
-            
-            # Convert complex queries to Query serialization format
-            two_chain_serialized = convert_complex_queries_to_query_format(two_chain_with_negs)
-            two_inter_serialized = convert_complex_queries_to_query_format(two_inter_with_negs)
-            three_chain_serialized = convert_complex_queries_to_query_format(three_chain_with_negs)
-            three_inter_serialized = convert_complex_queries_to_query_format(three_inter_with_negs)
-            
-            # Combine 2-hop and 3-hop queries
-            all_2hop_queries = two_chain_serialized + two_inter_serialized
-            all_3hop_queries = three_chain_serialized + three_inter_serialized
-            
-            # Split query data
-            train_queries_2, val_queries_2, test_queries_2 = split_data(all_2hop_queries)
-            train_queries_3, val_queries_3, test_queries_3 = split_data(all_3hop_queries)
-            
-            # Create the comprehensive data dictionary
-            all_data = {
-                'graph': graph_data,
-                'train_edges': train_edges,
-                'val_edges': val_edges,
-                'test_edges': test_edges,
-                'train_queries_2': train_queries_2,
-                'val_queries_2': val_queries_2,
-                'test_queries_2': test_queries_2,
-                'train_queries_3': train_queries_3,
-                'val_queries_3': val_queries_3,
-                'test_queries_3': test_queries_3
-            }
-            
-            # Save all data to the specified output file
-            save_data_to_file(all_data, args.output_pkl_file)
-            print(f"Successfully processed {len(tuples)} tuples and saved to {args.output_pkl_file}")
-            
-            return 0
+        # Parse command line arguments
+        parser = argparse.ArgumentParser()
+        parser.add_argument('--input_file', type=str, required=True)
+        parser.add_argument('--output_file', type=str, required=True)
+        args = parser.parse_args()
+        
+        # Set random seed for reproducible splits
+        random.seed(42)
+        
+        # Process the input file
+        tuples = process_json_file(args.input_file)
+        
+        if not tuples:
+            exit(1)
+        
+        # Apply negative sampling immediately after loading tuples
+        entity_pools = build_entity_pools(tuples)
+        tuples_with_negatives = add_negatives_to_tuples(tuples, entity_pools, num_negatives=1)
+        
+        # Generate all query structures using tuples with negatives
+        two_chain_tuples = create_two_chain(tuples_with_negatives)
+        two_inter_tuples = create_two_inter(tuples_with_negatives)
+        three_chain_tuples = create_three_chain(tuples_with_negatives)
+        three_inter_tuples = create_three_inter(tuples_with_negatives)
+        
+        # Add negatives to complex query structures
+        two_chain_with_negs = add_negatives_to_complex_queries(two_chain_tuples, entity_pools, num_negatives=1)
+        two_inter_with_negs = add_negatives_to_complex_queries(two_inter_tuples, entity_pools, num_negatives=1)
+        three_chain_with_negs = add_negatives_to_complex_queries(three_chain_tuples, entity_pools, num_negatives=1)
+        three_inter_with_negs = add_negatives_to_complex_queries(three_inter_tuples, entity_pools, num_negatives=1)
+        
+        # Create graph data structure
+        relations, triples, entity_types = create_graph_data_structure(tuples)
+        graph_data = [relations, triples, entity_types]
+        
+        # Create edge files from 1-chain (tuples already have negatives)
+        # Convert 1-chain tuples to Query serialization format
+        edges_serialized = convert_to_query_format(tuples_with_negatives)
+        train_edges, val_edges, test_edges = split_data(edges_serialized)
+        
+        # Convert complex queries to Query serialization format
+        two_chain_serialized = convert_complex_queries_to_query_format(two_chain_with_negs)
+        two_inter_serialized = convert_complex_queries_to_query_format(two_inter_with_negs)
+        three_chain_serialized = convert_complex_queries_to_query_format(three_chain_with_negs)
+        three_inter_serialized = convert_complex_queries_to_query_format(three_inter_with_negs)
+        
+        # Combine 2-hop and 3-hop queries
+        all_2hop_queries = two_chain_serialized + two_inter_serialized
+        all_3hop_queries = three_chain_serialized + three_inter_serialized
+        
+        # Split query data
+        train_queries_2, val_queries_2, test_queries_2 = split_data(all_2hop_queries)
+        train_queries_3, val_queries_3, test_queries_3 = split_data(all_3hop_queries)
+        
+        # Create the comprehensive data dictionary
+        all_data = {
+            'graph': graph_data,
+            'train_edges': train_edges,
+            'val_edges': val_edges,
+            'test_edges': test_edges,
+            'train_queries_2': train_queries_2,
+            'val_queries_2': val_queries_2,
+            'test_queries_2': test_queries_2,
+            'train_queries_3': train_queries_3,
+            'val_queries_3': val_queries_3,
+            'test_queries_3': test_queries_3
+        }
+        
+        # Save all data to the specified output file
+        save_data_to_file(all_data, args.output_file)
+        
+        print(f"Successfully processed {len(tuples)} tuples and saved to {args.output_file}")
 
-
-        if __name__ == "__main__":
-            exit(main())
     args:
-      - --json_file
-      - { inputValue: json_file }
-      - --output_pkl_file
-      - { outputPath: output_pkl_file }
+      - --input_file
+      - { inputValue: input_file }
+      - --output_file
+      - { outputPath: output_file }
