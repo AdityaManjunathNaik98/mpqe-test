@@ -39,7 +39,7 @@ implementation:
         resp.raise_for_status()
 
         os.makedirs(os.path.dirname(args.processed_data), exist_ok=True)
-        with open(args.processed_data, "wb") as f:
+        with open(args.processed_data + "data.json", "wb") as f:
             f.write(resp.content)
         print(f"Dataset saved at {args.processed_data}")
 
