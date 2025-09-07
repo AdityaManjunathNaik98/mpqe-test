@@ -1,7 +1,7 @@
 name: JSON to PKL Converter
 description: Converts JSON graph data to pickle format with train/val/test splits and negative sampling
 inputs:
-  - name: input_json_file
+  - name: json_file
     type: String
     description: Path to the input JSON file containing graph data
 outputs:
@@ -488,7 +488,7 @@ implementation:
         def main():
             """Main execution function."""
             parser = argparse.ArgumentParser()
-            parser.add_argument('--input_json_file', type=str, required=True)
+            parser.add_argument('--json_file', type=str, required=True)
             parser.add_argument('--output_pkl_file', type=str, required=True)
             args = parser.parse_args()
             
@@ -496,7 +496,7 @@ implementation:
             random.seed(42)
             
             # Process the input file
-            tuples = process_json_file(args.input_json_file)
+            tuples = process_json_file(args.json_file)
             
             if not tuples:
                 return 1
@@ -564,7 +564,7 @@ implementation:
         if __name__ == "__main__":
             exit(main())
     args:
-      - --input_json_file
-      - { inputValue: input_json_file }
+      - --json_file
+      - { inputValue: json_file }
       - --output_pkl_file
       - { outputPath: output_pkl_file }

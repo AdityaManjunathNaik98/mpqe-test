@@ -5,7 +5,7 @@ inputs:
     type: String
     description: URL to fetch the JSON dataset from.
 outputs:
-  - name: processed_data
+  - name: json_file  # Changed from processed_data to match the next component's input
     type: String
 implementation:
   container:
@@ -16,30 +16,35 @@ implementation:
       - |
         set -e
         python3 -m pip install --quiet requests
+
         exec "$0" "$@"
       - python3
       - -u
       - -c
       - |
         import argparse, os, requests, json
+
         parser = argparse.ArgumentParser()
         parser.add_argument('--process_json_url', type=str, required=True)
-        parser.add_argument('--processed_data', type=str, required=True)
+        parser.add_argument('--json_file', type=str, required=True)  # Changed from processed_data
         args = parser.parse_args()
-        args.process_json_url = args.process_json_url.replace("$$", "$$$")
+
+        # args.process_json_url = args.process_json_url.replace("$$", "$$$")
+        # args.weights_url = args.weights_url.replace("$$", "$$$")
+
 
         # --- Step 1: Download JSON from CDN ---
         print(f"Fetching JSON from CDN: {args.process_json_url}")
         resp = requests.get(args.process_json_url)
         resp.raise_for_status()
-        # Create the full file path properly
-        json_file_path = args.processed_data + ".json"
-        os.makedirs(os.path.dirname(json_file_path), exist_ok=True)
-        with open(json_file_path, "wb") as f:
+
+        os.makedirs(os.path.dirname(args.json_file), exist_ok=True)  # Changed variable name
+        with open(args.json_file, "wb") as f:  # Changed variable name
             f.write(resp.content)
-        print(f"JSON file saved at {json_file_path}")
+        print(f"Dataset saved at {args.json_file}")  # Changed variable name
+
     args:
       - --process_json_url
       - { inputValue: process_json_url }
-      - --processed_data
-      - { outputPath: processed_data }
+      - --json_file  # Changed from processed_data
+      - { outputPath: json_file }  # Changed from processed_data
