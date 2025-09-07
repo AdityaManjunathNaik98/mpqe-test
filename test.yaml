@@ -1,0 +1,143 @@
+name: Upload to CDN 1
+description: Uploads a file to a CDN using curl and outputs the public URL.
+inputs:
+  - {name: processed_data_pickle, type: Dataset, description: "Pickled DataWrapper object"}
+  - {name: config_string, type: String, description: "Configuration string (e.g., JSON)"}
+  - {name: bearer_token, type: string, description: "Bearer token for CDN authentication"}
+outputs:
+  - {name: pickle_cdn_url, type: String, description: "URL to the uploaded pickle file"}
+  - {name: config_cdn_url, type: String, description: "URL to the uploaded config string"}
+implementation:
+  container:
+    image: python:3.8-slim
+    command:
+      - sh
+      - -ec
+      - |
+        # The container image needs curl
+        if ! command -v curl &> /dev/null; then
+            echo "curl could not be found, installing..."
+            apt-get update > /dev/null && apt-get install -y curl > /dev/null
+        fi
+        exec "$0" "$@"
+      - python3
+      - -u
+      - -c
+      - |
+        import argparse
+        import subprocess
+        import json
+        import os
+        import uuid
+        import pickle # Added for pickle loading
+
+        parser = argparse.ArgumentParser(description="Upload files to a CDN.")
+        parser.add_argument('--processed_data_pickle', type=str, required=True, help='Path to the processed data pickle file.')
+        parser.add_argument('--config_string', type=str, required=True, help='Configuration string (e.g., JSON).')
+        parser.add_argument('--pickle_cdn_url', type=str, required=True, help='Path to the output file for the pickle CDN URL.')
+        parser.add_argument('--config_cdn_url', type=str, required=True, help='Path to the output file for the config CDN URL.')
+        parser.add_argument('--bearer_token', type=str, required=True, help='Bearer token for CDN authentication.')
+        args = parser.parse_args()
+
+        with open(args.bearer_token, 'r') as f:
+            bearer_token = f.read().strip()
+        upload_url = "https://ig.mobiusdtaas.ai/mobius-content-service/v1.0/content/upload?filePathAccess=private&filePath=%2Fbottle%2Flimka%2Fsoda%2F"
+
+        def upload_file_to_cdn(file_path, output_cdn_url_path, filename_prefix):
+            # The filename for the CDN will be derived from the original file path
+            original_filename = os.path.basename(file_path)
+            cdn_filename = f"{filename_prefix}_{original_filename}"
+            
+            print(f"Uploading file from {file_path} with CDN name {cdn_filename} to {upload_url}...")
+
+            curl_command = [
+                "curl",
+                "--location", upload_url,
+                "--header", f"Authorization: Bearer {bearer_token}",
+                "--form", f"file=@{file_path}", # Pass file path directly
+                "--fail",
+                "--show-error"
+            ]
+            print(f"Executing curl command: {' '.join(curl_command)}")
+
+            try:
+                process = subprocess.run(
+                    curl_command,
+                    capture_output=True,
+                    check=True # Keep check=True to raise CalledProcessError
+                )
+                
+                print("Upload successful. Raw response:")
+                print(process.stdout.decode('utf-8')) # Decode stdout for printing
+
+                response_json = json.loads(process.stdout.decode('utf-8'))
+                
+                relative_cdn_url = response_json.get("cdnUrl", "URL_NOT_FOUND")
+
+                if relative_cdn_url == "URL_NOT_FOUND":
+                    print("Error: Could not find 'cdnUrl' in the server response.")
+                    print("Full response:", process.stdout.decode('utf-8'))
+                    raise ValueError("Failed to parse cdnUrl from CDN response.")
+                
+                content_url_value = f"https://cdn.mobiusdtaas.ai{relative_cdn_url}"
+
+                print(f"Extracted CDN URL: {content_url_value}")
+
+                # Only create the directory if the path includes one.
+                output_dir = os.path.dirname(output_cdn_url_path)
+                if output_dir:
+                    os.makedirs(output_dir, exist_ok=True)
+                
+                with open(output_cdn_url_path, "w") as f:
+                    f.write(content_url_value)
+                
+                return content_url_value
+
+            except subprocess.CalledProcessError as e:
+                print("Error executing curl command:")
+                print(f"Return code: {e.returncode}")
+                print(f"Output: {e.stdout.decode('utf-8')}")
+                print(f"Error Output: {e.stderr.decode('utf-8')}")
+                raise e
+            except (json.JSONDecodeError, KeyError, ValueError) as e:
+                print(f"Error processing the server response: {e}")
+                raise e
+
+        # Load pickle file content
+        try:
+            with open(args.processed_data_pickle, "rb") as f:
+                pickle_content = f.read()
+            print(f"Successfully read pickle content from {args.processed_data_pickle}.")
+        except Exception as e:
+            print(f"Error reading pickle file {args.processed_data_pickle}: {e}")
+            raise e
+
+        # Write pickle content to a temporary file and upload it
+        pickle_temp_file = f"/tmp/processed_data_{uuid.uuid4()}.pkl"
+        with open(pickle_temp_file, 'wb') as f:
+            f.write(pickle_content)
+        
+        pickle_url = upload_file_to_cdn(pickle_temp_file, args.pickle_cdn_url, "processed_data")
+        os.remove(pickle_temp_file) # Clean up temporary file
+
+        # Write config string to a temporary file and upload it
+        config_temp_file = f"/tmp/config_{uuid.uuid4()}.json"
+        with open(config_temp_file, 'w') as f:
+            f.write(args.config_string)
+        
+        config_url = upload_file_to_cdn(config_temp_file, args.config_cdn_url, "config")
+        os.remove(config_temp_file) # Clean up temporary file
+
+        print(f"Final Pickle CDN URL: {pickle_url}")
+        print(f"Final Config CDN URL: {config_url}")
+    args:
+      - --processed_data_pickle
+      - {inputPath: processed_data_pickle}
+      - --config_string
+      - {inputValue: config_string}
+      - --bearer_token
+      - {inputPath: bearer_token}
+      - --pickle_cdn_url
+      - {outputPath: pickle_cdn_url}
+      - --config_cdn_url
+      - {outputPath: config_cdn_url}
