@@ -1,4 +1,4 @@
-name: Get JSON data through CDN
+name: Get JSON data through CDN 1
 description: Downloads JSON dataset from a CDN URL and saves it.
 inputs:
   - name: process_json_url
