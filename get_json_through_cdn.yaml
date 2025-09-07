@@ -29,7 +29,7 @@ implementation:
         parser.add_argument('--processed_data', type=str, required=True)
         args = parser.parse_args()
 
-        # args.process_json_url = args.process_json_url.replace("$$", "$$$")
+        args.process_json_url = args.process_json_url.replace("$$", "$$$")
         # args.weights_url = args.weights_url.replace("$$", "$$$")
 
 
