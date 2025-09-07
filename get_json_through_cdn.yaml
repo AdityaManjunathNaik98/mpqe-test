@@ -1,0 +1,50 @@
+name: Get JSON data through CDN
+description: Downloads JSON dataset from a CDN URL and saves it.
+inputs:
+  - name: process_json_url
+    type: String
+    description: URL to fetch the JSON dataset from.
+outputs:
+  - name: processed_data
+    type: Dataset
+implementation:
+  container:
+    image: python:3.9
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        python3 -m pip install --quiet requests
+
+        exec "$0" "$@"
+      - python3
+      - -u
+      - -c
+      - |
+        import argparse, os, requests, json
+
+        parser = argparse.ArgumentParser()
+        parser.add_argument('--process_json_url', type=str, required=True)
+        parser.add_argument('--processed_data', type=str, required=True)
+        args = parser.parse_args()
+
+        # args.process_json_url = args.process_json_url.replace("$$", "$$$")
+        # args.weights_url = args.weights_url.replace("$$", "$$$")
+
+
+        # --- Step 1: Download JSON from CDN ---
+        print(f"Fetching JSON from CDN: {args.process_json_url}")
+        resp = requests.get(args.process_json_url)
+        resp.raise_for_status()
+
+        os.makedirs(os.path.dirname(args.processed_data), exist_ok=True)
+        with open(args.processed_data, "wb") as f:
+            f.write(resp.content)
+        print(f"Dataset saved at {args.processed_data}")
+
+    args:
+      - --process_json_url
+      - { inputValue: process_json_url }
+      - --processed_data
+      - { outputPath: processed_data }
