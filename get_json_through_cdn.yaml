@@ -27,14 +27,14 @@ implementation:
         parser.add_argument('--processed_data', type=str, required=True)
         args = parser.parse_args()
         args.process_json_url = args.process_json_url.replace("$$", "$$$")
-        
+
         # --- Step 1: Download JSON from CDN ---
         print(f"Fetching JSON from CDN: {args.process_json_url}")
         resp = requests.get(args.process_json_url)
         resp.raise_for_status()
-        
-        os.makedirs(os.path.dirname(args.processed_data), exist_ok=True)
-        json_file_path = args.processed_data + "/data.json"
+        # Create the full file path properly
+        json_file_path = args.processed_data + ".json"
+        os.makedirs(os.path.dirname(json_file_path), exist_ok=True)
         with open(json_file_path, "wb") as f:
             f.write(resp.content)
         print(f"JSON file saved at {json_file_path}")
